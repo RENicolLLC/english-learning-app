@@ -16,17 +16,50 @@ import {
   Paper,
   Chip,
   LinearProgress,
-  useTheme
+  useTheme,
+  Alert
 } from '@mui/material';
 import {
   VolumeUp as VolumeUpIcon,
   Translate as TranslateIcon,
   Info as InfoIcon,
   Close as CloseIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  ErrorOutline as ErrorIcon
 } from '@mui/icons-material';
+import ErrorBoundary from './ErrorBoundary';
+import { errorReportingService, ValidationError } from '../services/error/errorReportingService';
 
-const ScenarioPlayer = ({ scenario, userLanguage, onComplete }) => {
+// Specific error boundary for scenario components
+const ScenarioErrorBoundary = ({ children }) => (
+  <ErrorBoundary
+    fallback={(error, reset) => (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <ErrorIcon sx={{ fontSize: 60, color: 'error.main', mb: 2 }} />
+        <Typography variant="h6" color="error" gutterBottom>
+          Scenario Error
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          {error instanceof ValidationError 
+            ? 'Invalid scenario data. Please try a different scenario.'
+            : 'Failed to load scenario. Please try again.'}
+        </Typography>
+        <Box sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'center' }}>
+          <Button variant="contained" onClick={reset}>
+            Try Again
+          </Button>
+          <Button variant="outlined" onClick={() => window.history.back()}>
+            Go Back
+          </Button>
+        </Box>
+      </Box>
+    )}
+  >
+    {children}
+  </ErrorBoundary>
+);
+
+const ScenarioPlayer = ({ scenario, userLanguage, onComplete, onBranchingPoint }) => {
   const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [showTranslation, setShowTranslation] = useState(false);
@@ -35,6 +68,38 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete }) => {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [showExercise, setShowExercise] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validateScenario = (scenario) => {
+    if (!scenario?.content?.dialogue?.length) {
+      throw new ValidationError('Invalid scenario: Missing dialogue content');
+    }
+    if (!scenario?.metadata?.level) {
+      throw new ValidationError('Invalid scenario: Missing difficulty level');
+    }
+  };
+
+  useEffect(() => {
+    try {
+      validateScenario(scenario);
+    } catch (error) {
+      setError(error.message);
+      errorReportingService.reportError(error, null, {
+        component: 'ScenarioPlayer',
+        scenarioId: scenario?.metadata?.id
+      });
+    }
+  }, [scenario]);
+
+  const handleError = (error) => {
+    setError(error.message);
+    errorReportingService.reportError(error, null, {
+      component: 'ScenarioPlayer',
+      scenarioId: scenario?.metadata?.id,
+      action: 'playback'
+    });
+  };
 
   useEffect(() => {
     // Calculate progress
@@ -76,7 +141,37 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete }) => {
     // Check if this choice has consequences
     const choice = scenario.interactions.userChoices[choiceIndex];
     if (choice.consequences?.followUpQuestions?.[option]) {
-      // Handle follow-up
+      // Add follow-up question to dialogue
+      const followUpQuestion = choice.consequences.followUpQuestions[option];
+      const currentDialogue = [...scenario.content.dialogue];
+      currentDialogue.splice(currentStep + 1, 0, {
+        speaker: scenario.content.dialogue[currentStep].speaker,
+        text: followUpQuestion,
+        translations: {},
+        isFollowUp: true
+      });
+      
+      // Update scenario with new dialogue
+      scenario.content.dialogue = currentDialogue;
+      
+      // Add appropriate response options if available
+      if (choice.consequences.followUpResponses?.[option]) {
+        scenario.interactions.userChoices.splice(choiceIndex + 1, 0, {
+          prompt: followUpQuestion,
+          options: choice.consequences.followUpResponses[option],
+          consequences: {}
+        });
+      }
+    }
+
+    // Check for branching points
+    const branchingPoint = scenario.interactions.branchingPoints?.find(
+      point => point.condition === option
+    );
+
+    if (branchingPoint) {
+      // Trigger branching scenario change
+      onBranchingPoint?.(branchingPoint.nextScenarioId);
     }
   };
 
@@ -221,86 +316,104 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete }) => {
     </Dialog>
   );
 
-  return (
-    <Box>
-      {/* Progress Bar */}
-      <LinearProgress 
-        variant="determinate" 
-        value={progress} 
-        sx={{ mb: 2, height: 8, borderRadius: 4 }}
-      />
-
-      {/* Main Content */}
-      <Box sx={{ mb: 3 }}>
-        {renderDialogue()}
-      </Box>
-
-      {/* Control Buttons */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Button
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          variant="outlined"
-        >
-          Back
-        </Button>
-        <Box>
-          <IconButton 
-            onClick={() => setShowTranslation(!showTranslation)}
-            color={showTranslation ? 'primary' : 'default'}
-            sx={{ mr: 1 }}
-          >
-            <TranslateIcon />
-          </IconButton>
-          <IconButton 
-            onClick={() => setShowCulturalNote(!showCulturalNote)}
-            color={showCulturalNote ? 'primary' : 'default'}
-            sx={{ mr: 1 }}
-          >
-            <InfoIcon />
-          </IconButton>
-        </Box>
-        <Button
-          onClick={handleNext}
-          variant="contained"
-          endIcon={currentStep === scenario.content.dialogue.length - 1 ? <CheckCircleIcon /> : null}
-        >
-          {currentStep === scenario.content.dialogue.length - 1 ? 'Complete' : 'Next'}
-        </Button>
-      </Box>
-
-      {/* Cultural Notes Dialog */}
-      <Dialog 
-        open={showCulturalNote} 
-        onClose={() => setShowCulturalNote(false)}
-        maxWidth="sm"
-        fullWidth
+  if (error) {
+    return (
+      <Alert 
+        severity="error" 
+        sx={{ mb: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => setError(null)}>
+            Retry
+          </Button>
+        }
       >
-        <DialogTitle>Cultural Notes</DialogTitle>
-        <DialogContent>
-          <Typography variant="subtitle1" color="primary" gutterBottom>
-            {scenario.content.culturalNotes.relevance}
-          </Typography>
-          
-          <Typography variant="h6" sx={{ mt: 2 }}>Tips:</Typography>
-          {scenario.content.culturalNotes.tips.map((tip, index) => (
-            <Typography key={index} variant="body2" sx={{ mt: 1 }}>
-              • {tip}
-            </Typography>
-          ))}
+        {error}
+      </Alert>
+    );
+  }
 
-          <Typography variant="h6" sx={{ mt: 2 }}>Common Mistakes to Avoid:</Typography>
-          {scenario.content.culturalNotes.commonMistakes.map((mistake, index) => (
-            <Typography key={index} variant="body2" sx={{ mt: 1 }}>
-              • {mistake}
-            </Typography>
-          ))}
-        </DialogContent>
-      </Dialog>
+  return (
+    <ScenarioErrorBoundary>
+      <Box>
+        {/* Progress Bar */}
+        <LinearProgress 
+          variant="determinate" 
+          value={progress} 
+          sx={{ mb: 2, height: 8, borderRadius: 4 }}
+        />
 
-      {/* Exercises Dialog */}
-      {renderExercises()}
-    </Box>
+        {/* Main Content */}
+        <Box sx={{ mb: 3 }}>
+          {renderDialogue()}
+        </Box>
+
+        {/* Control Buttons */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <Button
+            onClick={handleBack}
+            disabled={currentStep === 0}
+            variant="outlined"
+          >
+            Back
+          </Button>
+          <Box>
+            <IconButton 
+              onClick={() => setShowTranslation(!showTranslation)}
+              color={showTranslation ? 'primary' : 'default'}
+              sx={{ mr: 1 }}
+            >
+              <TranslateIcon />
+            </IconButton>
+            <IconButton 
+              onClick={() => setShowCulturalNote(!showCulturalNote)}
+              color={showCulturalNote ? 'primary' : 'default'}
+              sx={{ mr: 1 }}
+            >
+              <InfoIcon />
+            </IconButton>
+          </Box>
+          <Button
+            onClick={handleNext}
+            variant="contained"
+            endIcon={currentStep === scenario.content.dialogue.length - 1 ? <CheckCircleIcon /> : null}
+          >
+            {currentStep === scenario.content.dialogue.length - 1 ? 'Complete' : 'Next'}
+          </Button>
+        </Box>
+
+        {/* Cultural Notes Dialog */}
+        <Dialog 
+          open={showCulturalNote} 
+          onClose={() => setShowCulturalNote(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Cultural Notes</DialogTitle>
+          <DialogContent>
+            <Typography variant="subtitle1" color="primary" gutterBottom>
+              {scenario.content.culturalNotes.relevance}
+            </Typography>
+            
+            <Typography variant="h6" sx={{ mt: 2 }}>Tips:</Typography>
+            {scenario.content.culturalNotes.tips.map((tip, index) => (
+              <Typography key={index} variant="body2" sx={{ mt: 1 }}>
+                • {tip}
+              </Typography>
+            ))}
+
+            <Typography variant="h6" sx={{ mt: 2 }}>Common Mistakes to Avoid:</Typography>
+            {scenario.content.culturalNotes.commonMistakes.map((mistake, index) => (
+              <Typography key={index} variant="body2" sx={{ mt: 1 }}>
+                • {mistake}
+              </Typography>
+            ))}
+          </DialogContent>
+        </Dialog>
+
+        {/* Exercises Dialog */}
+        {renderExercises()}
+      </Box>
+    </ScenarioErrorBoundary>
   );
 };
 

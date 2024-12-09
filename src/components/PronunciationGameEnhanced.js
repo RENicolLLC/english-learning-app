@@ -23,7 +23,10 @@ import {
   InputLabel,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  CircularProgress
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -37,6 +40,7 @@ import {
   Leaderboard as LeaderboardIcon
 } from '@mui/icons-material';
 import { gameConfig } from '../config/gameConfig';
+import supabase from '../lib/supabase';
 
 const LeaderboardCard = styled(Card)`
   background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
@@ -66,6 +70,47 @@ const PronunciationPractice = ({ userId, onComplete }) => {
   const [selectedMode, setSelectedMode] = useState('full');
   const [showModeSelect, setShowModeSelect] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+
+  useEffect(() => {
+    if (showLeaderboard) {
+      loadLeaderboardData();
+    }
+  }, [showLeaderboard]);
+
+  const loadLeaderboardData = async () => {
+    setIsLoadingLeaderboard(true);
+    try {
+      const { data: monthlyScores } = await supabase
+        .from('monthly_leaderboard')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10);
+
+      const enrichedData = await Promise.all(
+        monthlyScores.map(async (score) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', score.user_id)
+            .single();
+
+          return {
+            ...score,
+            username: profile?.username || 'Anonymous Player',
+            avatarUrl: profile?.avatar_url
+          };
+        })
+      );
+
+      setLeaderboardData(enrichedData);
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  };
 
   // Mode selection dialog
   const renderModeSelect = () => (
@@ -170,28 +215,40 @@ const PronunciationPractice = ({ userId, onComplete }) => {
         <Typography variant="h6" gutterBottom>
           Current Rankings
         </Typography>
-        <List>
-          {/* Placeholder for actual leaderboard data */}
-          {[...Array(5)].map((_, index) => (
-            <ListItem
-              key={index}
-              sx={{
-                background: index === 0 ? 'rgba(255,215,0,0.1)' : 'rgba(255,255,255,0.05)',
-                mb: 1,
-                borderRadius: 1
-              }}
-            >
-              <ListItemText
-                primary={`Player ${index + 1}`}
-                secondary={`${10000 - (index * 1000)} points`}
-                sx={{ '& .MuiListItemText-secondary': { color: 'rgba(255,255,255,0.7)' } }}
-              />
-              <RewardBadge>
-                {gameConfig.monthlyLeaderboard.rewards[index + 1]?.icon}
-              </RewardBadge>
-            </ListItem>
-          ))}
-        </List>
+        {isLoadingLeaderboard ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <CircularProgress color="inherit" />
+          </Box>
+        ) : (
+          <List>
+            {leaderboardData.map((player, index) => (
+              <ListItem
+                key={player.id}
+                sx={{
+                  background: index === 0 ? 'rgba(255,215,0,0.1)' : 'rgba(255,255,255,0.05)',
+                  mb: 1,
+                  borderRadius: 1
+                }}
+              >
+                <ListItemAvatar>
+                  <Avatar src={player.avatarUrl}>
+                    {player.username.charAt(0)}
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={player.username}
+                  secondary={`${player.score.toLocaleString()} points`}
+                  sx={{ '& .MuiListItemText-secondary': { color: 'rgba(255,255,255,0.7)' } }}
+                />
+                {index < 3 && (
+                  <RewardBadge>
+                    {gameConfig.monthlyLeaderboard.rewards[index + 1]?.icon}
+                  </RewardBadge>
+                )}
+              </ListItem>
+            ))}
+          </List>
+        )}
       </Box>
 
       <Box sx={{ textAlign: 'center' }}>

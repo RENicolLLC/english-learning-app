@@ -117,13 +117,110 @@ const getUserProgress = async (userId) => {
 };
 
 const generateRecommendations = (userProgress) => {
-  // Implementation for generating personalized recommendations
-  return [];
+  const recommendations = [];
+  
+  // Analyze user's performance in different categories
+  const categories = Object.keys(userProgress);
+  categories.forEach(category => {
+    const categoryProgress = userProgress[category];
+    
+    // Check for areas needing improvement
+    if (categoryProgress.score < 0.7) {
+      recommendations.push({
+        type: 'improvement',
+        category,
+        level: categoryProgress.level,
+        reason: `Practice needed in ${category}`,
+        scenarioIds: categoryProgress.availableScenarios.slice(0, 3)
+      });
+    }
+    
+    // Suggest next level if current level mastered
+    if (categoryProgress.score > 0.85 && categoryProgress.completedScenarios.length >= 3) {
+      recommendations.push({
+        type: 'advancement',
+        category,
+        level: categoryProgress.level + 1,
+        reason: 'Ready for next level',
+        scenarioIds: categoryProgress.nextLevelScenarios.slice(0, 3)
+      });
+    }
+  });
+
+  // Sort recommendations by priority
+  recommendations.sort((a, b) => {
+    if (a.type === 'improvement' && b.type !== 'improvement') return -1;
+    if (a.type !== 'improvement' && b.type === 'improvement') return 1;
+    return 0;
+  });
+
+  return recommendations;
 };
 
 const generateScenarioVariations = (baseScenario, difficulty) => {
-  // Implementation for generating scenario variations
-  return [];
+  const variations = [];
+  const difficultyModifiers = {
+    easy: {
+      timeLimit: 1.5,
+      vocabularyLevel: -1,
+      hints: true,
+      translations: true
+    },
+    normal: {
+      timeLimit: 1,
+      vocabularyLevel: 0,
+      hints: false,
+      translations: false
+    },
+    hard: {
+      timeLimit: 0.7,
+      vocabularyLevel: 1,
+      hints: false,
+      translations: false
+    }
+  };
+
+  const modifier = difficultyModifiers[difficulty];
+  
+  // Create main variation with difficulty adjustments
+  const mainVariation = {
+    ...baseScenario,
+    metadata: {
+      ...baseScenario.metadata,
+      difficulty,
+      timeLimit: Math.round(baseScenario.metadata.estimatedTime * modifier.timeLimit),
+      showHints: modifier.hints,
+      showTranslations: modifier.translations
+    }
+  };
+
+  variations.push(mainVariation);
+
+  // Generate alternative dialogue paths
+  baseScenario.content.dialogue.forEach((dialogue, index) => {
+    if (dialogue.variations) {
+      dialogue.variations.forEach(variation => {
+        const alternativeScenario = {
+          ...mainVariation,
+          content: {
+            ...mainVariation.content,
+            dialogue: [
+              ...mainVariation.content.dialogue.slice(0, index),
+              {
+                ...dialogue,
+                text: variation.text,
+                translations: variation.translations
+              },
+              ...mainVariation.content.dialogue.slice(index + 1)
+            ]
+          }
+        };
+        variations.push(alternativeScenario);
+      });
+    }
+  });
+
+  return variations;
 };
 
 // Scenario template structure

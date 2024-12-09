@@ -223,9 +223,134 @@ export const generatePracticeExercises = (feedback) => {
 };
 
 const generateCategoryExercises = (category, score) => {
-  // Implementation for generating specific exercises
-  // This would be expanded based on category and score
-  return [];
+  const exercises = [];
+  
+  switch (category) {
+    case 'stress':
+      exercises.push(
+        {
+          type: 'stress_pattern',
+          words: ['hospital', 'emergency', 'medication', 'diagnosis', 'treatment'],
+          instructions: 'Mark the stressed syllable in each word',
+          difficulty: score < 0.7 ? 'easy' : 'normal'
+        },
+        {
+          type: 'word_pairs',
+          pairs: [
+            ['REcord (n)', 'reCORD (v)'],
+            ['CONduct (n)', 'conDUCT (v)'],
+            ['PREsent (n)', 'preSENT (v)']
+          ],
+          instructions: 'Practice the stress difference in these word pairs'
+        }
+      );
+      break;
+
+    case 'intonation':
+      exercises.push(
+        {
+          type: 'question_patterns',
+          sentences: [
+            'How are you feeling today?',
+            'Does it hurt when you move?',
+            'Have you taken any medication?'
+          ],
+          instructions: 'Practice the rising and falling intonation patterns'
+        },
+        {
+          type: 'emotion_expression',
+          phrases: [
+            { text: 'I understand', emotion: 'empathy' },
+            { text: 'That must be difficult', emotion: 'concern' },
+            { text: 'You're making progress', emotion: 'encouragement' }
+          ],
+          instructions: 'Practice expressing different emotions through intonation'
+        }
+      );
+      break;
+
+    case 'rhythm':
+      exercises.push(
+        {
+          type: 'sentence_rhythm',
+          sentences: [
+            'Take | the MED|i|cine | TWICE | a DAY',
+            'TELL | me WHERE | it HURTS | the MOST',
+            'I NEED | to CHECK | your BLOOD | pres|SURE'
+          ],
+          instructions: 'Practice the rhythm patterns marked with | symbols'
+        },
+        {
+          type: 'rhythm_groups',
+          groups: [
+            'in the morning | after breakfast',
+            'before going to bed | with water',
+            'if symptoms persist | call your doctor'
+          ],
+          instructions: 'Practice connecting these rhythm groups smoothly'
+        }
+      );
+      break;
+
+    case 'consonants':
+      exercises.push(
+        {
+          type: 'minimal_pairs',
+          pairs: [
+            ['pill', 'bill'],
+            ['think', 'sink'],
+            ['right', 'light']
+          ],
+          instructions: 'Practice distinguishing these similar consonant sounds'
+        },
+        {
+          type: 'tongue_twisters',
+          phrases: [
+            'Peter Piper picked a peck of pickled peppers',
+            'She sells seashells by the seashore',
+            'Thirty-three thankful thoughts'
+          ],
+          instructions: 'Practice these tongue twisters slowly, then increase speed'
+        }
+      );
+      break;
+
+    case 'vowels':
+      exercises.push(
+        {
+          type: 'vowel_contrast',
+          pairs: [
+            ['heat', 'hit'],
+            ['pain', 'pen'],
+            ['fool', 'full']
+          ],
+          instructions: 'Practice distinguishing these vowel sounds'
+        },
+        {
+          type: 'vowel_sequences',
+          words: [
+            'examination',
+            'medication',
+            'respiratory',
+            'evaluation',
+            'therapeutic'
+          ],
+          instructions: 'Focus on the vowel sounds in these medical terms'
+        }
+      );
+      break;
+  }
+
+  // Add difficulty-based variations
+  if (score < 0.5) {
+    exercises.forEach(exercise => {
+      exercise.showIPA = true;
+      exercise.playbackSpeed = 0.8;
+      exercise.repetitions = 3;
+    });
+  }
+
+  return exercises;
 };
 
 export default {

@@ -1,288 +1,288 @@
-import { supabase } from '../auth/supabaseClient';
+import { errorReportingService, DataSyncError } from '../error/errorReportingService';
 
-export const analyticsService = {
-  // Track user activity
-  trackActivity: async (userId, activityType, activityData) => {
+class AnalyticsService {
+  constructor() {
+    this.eventQueue = [];
+    this.isProcessing = false;
+    this.retryAttempts = 3;
+    this.retryDelay = 1000;
+    this.offlineStorage = new Map();
+    this.initialized = false;
+  }
+
+  async initialize() {
     try {
-      const { data, error } = await supabase
-        .from('user_activities')
-        .insert([
-          {
-            user_id: userId,
-            activity_type: activityType,
-            activity_data: activityData,
-            timestamp: new Date().toISOString()
-          }
+      if (this.initialized) return;
+
+      // Initialize analytics providers
+      await this.initializeProviders();
+      
+      // Process any stored offline events
+      await this.processOfflineEvents();
+      
+      this.initialized = true;
+    } catch (error) {
+      this.handleError(error, { action: 'initialize' });
+      // Continue without initialization, will work in offline mode
+    }
+  }
+
+  async initializeProviders() {
+    try {
+      // Initialize Firebase Analytics
+      if (window.firebase?.analytics) {
+        this.firebaseAnalytics = window.firebase.analytics();
+      }
+
+      // Initialize Google Analytics
+      if (window.gtag) {
+        this.gtag = window.gtag;
+      }
+
+      // Initialize Custom Analytics
+      await this.initializeCustomAnalytics();
+    } catch (error) {
+      throw new Error('Failed to initialize analytics providers: ' + error.message);
+    }
+  }
+
+  async trackEvent(eventName, eventData = {}) {
+    try {
+      // Validate event data
+      this.validateEventData(eventName, eventData);
+
+      // Add to queue
+      this.queueEvent({
+        name: eventName,
+        data: eventData,
+        timestamp: new Date().toISOString()
+      });
+
+      // Process queue if not already processing
+      if (!this.isProcessing) {
+        await this.processEventQueue();
+      }
+    } catch (error) {
+      this.handleError(error, {
+        action: 'trackEvent',
+        eventName,
+        eventData
+      });
+    }
+  }
+
+  validateEventData(eventName, eventData) {
+    if (!eventName || typeof eventName !== 'string') {
+      throw new Error('Invalid event name');
+    }
+
+    if (eventData && typeof eventData !== 'object') {
+      throw new Error('Event data must be an object');
+    }
+
+    // Validate event name format
+    const validEventNameRegex = /^[a-zA-Z][a-zA-Z0-9_]{2,50}$/;
+    if (!validEventNameRegex.test(eventName)) {
+      throw new Error('Invalid event name format');
+    }
+
+    // Validate data values
+    for (const [key, value] of Object.entries(eventData)) {
+      if (value === undefined || value === null) {
+        throw new Error(`Invalid value for key: ${key}`);
+      }
+      if (typeof value === 'object' && Object.keys(value).length === 0) {
+        throw new Error(`Empty object for key: ${key}`);
+      }
+    }
+  }
+
+  queueEvent(event) {
+    this.eventQueue.push(event);
+  }
+
+  async processEventQueue() {
+    if (this.isProcessing || this.eventQueue.length === 0) return;
+
+    this.isProcessing = true;
+    let retryCount = 0;
+
+    while (this.eventQueue.length > 0 && retryCount < this.retryAttempts) {
+      try {
+        const event = this.eventQueue[0];
+        
+        // Try to send to all providers
+        await Promise.all([
+          this.sendToFirebase(event),
+          this.sendToGoogleAnalytics(event),
+          this.sendToCustomAnalytics(event)
         ]);
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error tracking activity:', error);
-      throw error;
+        // Remove successfully processed event
+        this.eventQueue.shift();
+        retryCount = 0; // Reset retry count for next event
+      } catch (error) {
+        retryCount++;
+        if (retryCount === this.retryAttempts) {
+          // Store failed event for offline processing
+          await this.storeOfflineEvent(this.eventQueue[0]);
+          this.eventQueue.shift();
+          retryCount = 0;
+        } else {
+          await this.delay(this.retryDelay * retryCount);
+        }
+      }
     }
-  },
 
-  // Get user learning statistics
-  getLearningStats: async (userId, timeRange = '7d') => {
-    try {
-      const { data, error } = await supabase
-        .from('user_activities')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('timestamp', new Date(Date.now() - getDaysInMs(timeRange)))
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      return processLearningStats(data);
-    } catch (error) {
-      console.error('Error getting learning stats:', error);
-      throw error;
-    }
-  },
-
-  // Track exercise completion
-  trackExerciseCompletion: async (userId, exerciseData) => {
-    try {
-      const { data, error } = await supabase
-        .from('exercise_completions')
-        .insert([
-          {
-            user_id: userId,
-            exercise_type: exerciseData.type,
-            score: exerciseData.score,
-            time_spent: exerciseData.timeSpent,
-            completed_at: new Date().toISOString()
-          }
-        ]);
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error tracking exercise completion:', error);
-      throw error;
-    }
-  },
-
-  // Get performance insights
-  getPerformanceInsights: async (userId) => {
-    try {
-      // Get exercise completions
-      const { data: exerciseData, error: exerciseError } = await supabase
-        .from('exercise_completions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('completed_at', { ascending: false });
-
-      if (exerciseError) throw exerciseError;
-
-      // Get learning activities
-      const { data: activityData, error: activityError } = await supabase
-        .from('user_activities')
-        .select('*')
-        .eq('user_id', userId)
-        .order('timestamp', { ascending: false });
-
-      if (activityError) throw activityError;
-
-      return generateInsights(exerciseData, activityData);
-    } catch (error) {
-      console.error('Error getting performance insights:', error);
-      throw error;
-    }
-  },
-
-  // Track learning streak
-  updateStreak: async (userId) => {
-    try {
-      // Get user's current streak
-      const { data: streakData, error: streakError } = await supabase
-        .from('user_streaks')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (streakError) throw streakError;
-
-      const updatedStreak = calculateUpdatedStreak(streakData);
-
-      // Update streak
-      const { data, error } = await supabase
-        .from('user_streaks')
-        .upsert([
-          {
-            user_id: userId,
-            current_streak: updatedStreak.current,
-            longest_streak: updatedStreak.longest,
-            last_activity_date: new Date().toISOString()
-          }
-        ]);
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error updating streak:', error);
-      throw error;
-    }
-  }
-};
-
-// Helper functions
-const getDaysInMs = (timeRange) => {
-  const days = parseInt(timeRange);
-  return days * 24 * 60 * 60 * 1000;
-};
-
-const processLearningStats = (data) => {
-  return {
-    totalActivities: data.length,
-    activityByType: data.reduce((acc, activity) => {
-      acc[activity.activity_type] = (acc[activity.activity_type] || 0) + 1;
-      return acc;
-    }, {}),
-    timeSpent: data.reduce((acc, activity) => acc + (activity.activity_data.timeSpent || 0), 0),
-    averageScore: calculateAverageScore(data)
-  };
-};
-
-const calculateAverageScore = (data) => {
-  const scores = data.filter(activity => activity.activity_data.score !== undefined);
-  if (scores.length === 0) return 0;
-  return scores.reduce((acc, activity) => acc + activity.activity_data.score, 0) / scores.length;
-};
-
-const generateInsights = (exerciseData, activityData) => {
-  return {
-    strengths: identifyStrengths(exerciseData),
-    weaknesses: identifyWeaknesses(exerciseData),
-    recommendations: generateRecommendations(exerciseData, activityData),
-    progress: calculateProgress(exerciseData)
-  };
-};
-
-const calculateUpdatedStreak = (streakData) => {
-  const today = new Date().toISOString().split('T')[0];
-  const lastActivity = streakData?.last_activity_date?.split('T')[0];
-  
-  if (!lastActivity) {
-    return { current: 1, longest: 1 };
+    this.isProcessing = false;
   }
 
-  const daysSinceLastActivity = Math.floor((new Date(today) - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-  
-  if (daysSinceLastActivity === 1) {
-    const currentStreak = (streakData.current_streak || 0) + 1;
-    return {
-      current: currentStreak,
-      longest: Math.max(currentStreak, streakData.longest_streak || 0)
-    };
+  async sendToFirebase(event) {
+    if (!this.firebaseAnalytics) return;
+
+    try {
+      await this.firebaseAnalytics.logEvent(event.name, {
+        ...event.data,
+        timestamp: event.timestamp
+      });
+    } catch (error) {
+      throw new DataSyncError(
+        'firebase',
+        'Failed to send event to Firebase',
+        { originalError: error.message }
+      );
+    }
   }
 
-  if (daysSinceLastActivity === 0) {
-    return {
-      current: streakData.current_streak,
-      longest: streakData.longest_streak
-    };
+  async sendToGoogleAnalytics(event) {
+    if (!this.gtag) return;
+
+    try {
+      this.gtag('event', event.name, {
+        ...event.data,
+        timestamp: event.timestamp
+      });
+    } catch (error) {
+      throw new DataSyncError(
+        'google_analytics',
+        'Failed to send event to Google Analytics',
+        { originalError: error.message }
+      );
+    }
   }
 
-  return { current: 1, longest: streakData.longest_streak || 1 };
-};
+  async sendToCustomAnalytics(event) {
+    try {
+      const response = await fetch('/api/analytics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event)
+      });
 
-const identifyStrengths = (exerciseData) => {
-  const strengthThreshold = 0.8; // 80% success rate
-  const exercisesByType = groupByExerciseType(exerciseData);
-  
-  return Object.entries(exercisesByType)
-    .filter(([_, exercises]) => calculateSuccessRate(exercises) >= strengthThreshold)
-    .map(([type]) => type);
-};
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      throw new DataSyncError(
+        'custom_analytics',
+        'Failed to send event to custom analytics',
+        { originalError: error.message }
+      );
+    }
+  }
 
-const identifyWeaknesses = (exerciseData) => {
-  const weaknessThreshold = 0.6; // 60% success rate
-  const exercisesByType = groupByExerciseType(exerciseData);
-  
-  return Object.entries(exercisesByType)
-    .filter(([_, exercises]) => calculateSuccessRate(exercises) < weaknessThreshold)
-    .map(([type]) => type);
-};
+  async storeOfflineEvent(event) {
+    try {
+      const key = `offline_event_${Date.now()}`;
+      this.offlineStorage.set(key, event);
+      
+      // Also store in localStorage for persistence
+      const offlineEvents = JSON.parse(localStorage.getItem('offline_analytics') || '[]');
+      offlineEvents.push(event);
+      localStorage.setItem('offline_analytics', JSON.stringify(offlineEvents));
+    } catch (error) {
+      this.handleError(error, {
+        action: 'storeOfflineEvent',
+        event
+      });
+    }
+  }
 
-const groupByExerciseType = (exerciseData) => {
-  return exerciseData.reduce((acc, exercise) => {
-    acc[exercise.exercise_type] = acc[exercise.exercise_type] || [];
-    acc[exercise.exercise_type].push(exercise);
-    return acc;
-  }, {});
-};
+  async processOfflineEvents() {
+    try {
+      // Process events from localStorage
+      const offlineEvents = JSON.parse(localStorage.getItem('offline_analytics') || '[]');
+      
+      if (offlineEvents.length === 0) return;
 
-const calculateSuccessRate = (exercises) => {
-  if (exercises.length === 0) return 0;
-  const totalScore = exercises.reduce((acc, exercise) => acc + exercise.score, 0);
-  return totalScore / (exercises.length * 100); // Assuming score is out of 100
-};
+      for (const event of offlineEvents) {
+        await this.trackEvent(event.name, event.data);
+      }
 
-const calculateProgress = (exerciseData) => {
-  const recentExercises = exerciseData.slice(0, 10); // Last 10 exercises
-  const olderExercises = exerciseData.slice(10, 20); // Previous 10 exercises
-  
-  if (recentExercises.length === 0 || olderExercises.length === 0) return 0;
-  
-  const recentAverage = calculateAverageScore(recentExercises);
-  const olderAverage = calculateAverageScore(olderExercises);
-  
-  return ((recentAverage - olderAverage) / olderAverage) * 100;
-};
+      // Clear processed events
+      localStorage.removeItem('offline_analytics');
+      this.offlineStorage.clear();
+    } catch (error) {
+      this.handleError(error, {
+        action: 'processOfflineEvents'
+      });
+    }
+  }
 
-const generateRecommendations = (exerciseData, activityData) => {
-  const weaknesses = identifyWeaknesses(exerciseData);
-  const activityPatterns = analyzeActivityPatterns(activityData);
-  
-  return {
-    focusAreas: weaknesses,
-    suggestedActivities: generateSuggestedActivities(weaknesses, activityPatterns),
-    timeRecommendations: generateTimeRecommendations(activityPatterns)
-  };
-};
+  handleError(error, context = {}) {
+    errorReportingService.reportError(error, null, {
+      component: 'AnalyticsService',
+      ...context
+    });
+  }
 
-const analyzeActivityPatterns = (activityData) => {
-  return {
-    preferredTimes: findPreferredTimes(activityData),
-    averageSessionLength: calculateAverageSessionLength(activityData),
-    mostProductiveDay: findMostProductiveDay(activityData)
-  };
-};
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
-const findPreferredTimes = (activityData) => {
-  // Implementation for finding preferred study times
-  return ['morning', 'evening']; // Placeholder
-};
+  // Utility methods
+  async getEventStats(timeRange = '24h') {
+    try {
+      const response = await fetch(`/api/analytics/stats?timeRange=${timeRange}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      this.handleError(error, {
+        action: 'getEventStats',
+        timeRange
+      });
+      return null;
+    }
+  }
 
-const calculateAverageSessionLength = (activityData) => {
-  // Implementation for calculating average session length
-  return 30; // Placeholder: 30 minutes
-};
+  async getUserActivity(userId, startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/api/analytics/user/${userId}/activity?start=${startDate}&end=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      this.handleError(error, {
+        action: 'getUserActivity',
+        userId,
+        startDate,
+        endDate
+      });
+      return [];
+    }
+  }
 
-const findMostProductiveDay = (activityData) => {
-  // Implementation for finding most productive day
-  return 'Monday'; // Placeholder
-};
+  clearOfflineStorage() {
+    localStorage.removeItem('offline_analytics');
+    this.offlineStorage.clear();
+  }
+}
 
-const generateSuggestedActivities = (weaknesses, patterns) => {
-  // Implementation for generating personalized activity suggestions
-  return weaknesses.map(weakness => ({
-    type: weakness,
-    suggestedExercises: ['exercise1', 'exercise2'],
-    difficulty: 'intermediate'
-  }));
-};
-
-const generateTimeRecommendations = (patterns) => {
-  // Implementation for generating time management recommendations
-  return {
-    optimalTime: patterns.preferredTimes[0],
-    sessionLength: patterns.averageSessionLength,
-    frequency: 'daily'
-  };
-};
-
-export default analyticsService; 
+export const analyticsService = new AnalyticsService(); 

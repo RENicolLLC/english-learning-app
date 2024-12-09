@@ -21,6 +21,29 @@ import TranslateIcon from '@mui/icons-material/Translate';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import bilingualChatService from '../services/ai/bilingualChatService';
 import { supportedLanguages, languageLevels } from '../services/i18n/languageConfig';
+import ErrorBoundary from './ErrorBoundary';
+import { ValidationError } from '../services/error/errorReportingService';
+
+// Create specific error boundary for chat components
+const ChatErrorBoundary = ({ children }) => (
+  <ErrorBoundary
+    fallback={(error, reset) => (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          Chat Error
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          {error.message || 'Failed to load chat. Please try again.'}
+        </Typography>
+        <Button variant="contained" onClick={reset}>
+          Retry Chat
+        </Button>
+      </Box>
+    )}
+  >
+    {children}
+  </ErrorBoundary>
+);
 
 const BilingualConversation = () => {
   const [messages, setMessages] = useState([]);
@@ -28,6 +51,7 @@ const BilingualConversation = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [level, setLevel] = useState('intermediate');
   const [nativeLanguage, setNativeLanguage] = useState('th'); // Default to Thai
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -45,10 +69,18 @@ const BilingualConversation = () => {
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const validateMessage = (message) => {
+    if (!message.trim()) {
+      throw new ValidationError('Message cannot be empty');
+    }
+    if (message.length > 500) {
+      throw new ValidationError('Message is too long (max 500 characters)');
+    }
+  };
 
+  const handleSend = async () => {
     try {
+      validateMessage(input);
       setIsLoading(true);
       const userMessage = input;
       setInput('');
@@ -91,15 +123,7 @@ const BilingualConversation = () => {
         ]);
       }
     } catch (error) {
-      console.error('Error in conversation:', error);
-      setMessages(prev => [
-        ...prev,
-        {
-          type: 'error',
-          content: 'Sorry, there was an error processing your message. Please try again.',
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -174,86 +198,98 @@ const BilingualConversation = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={3} sx={{ p: 3, height: '70vh', display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Native Language</InputLabel>
-            <Select
-              value={nativeLanguage}
-              label="Native Language"
-              onChange={(e) => setNativeLanguage(e.target.value)}
-            >
-              {Object.entries(supportedLanguages).map(([code, lang]) => (
-                <MenuItem key={code} value={code}>
-                  {lang.nativeName} ({lang.name})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+    <ChatErrorBoundary>
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Paper elevation={3} sx={{ p: 3, height: '70vh', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Native Language</InputLabel>
+              <Select
+                value={nativeLanguage}
+                label="Native Language"
+                onChange={(e) => setNativeLanguage(e.target.value)}
+              >
+                {Object.entries(supportedLanguages).map(([code, lang]) => (
+                  <MenuItem key={code} value={code}>
+                    {lang.nativeName} ({lang.name})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>English Level</InputLabel>
-            <Select
-              value={level}
-              label="English Level"
-              onChange={(e) => setLevel(e.target.value)}
-            >
-              {Object.entries(languageLevels).map(([key, labels]) => (
-                <MenuItem key={key} value={key}>
-                  {labels[nativeLanguage]} / {labels.en}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>English Level</InputLabel>
+              <Select
+                value={level}
+                label="English Level"
+                onChange={(e) => setLevel(e.target.value)}
+              >
+                {Object.entries(languageLevels).map(([key, labels]) => (
+                  <MenuItem key={key} value={key}>
+                    {labels[nativeLanguage]} / {labels.en}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
-        <Box sx={{ 
-          flexGrow: 1, 
-          overflowY: 'auto', 
-          mb: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          p: 2
-        }}>
-          {messages.map((message, index) => (
-            <Box
-              key={index}
-              sx={{
-                display: 'flex',
-                justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
-                mb: 1
-              }}
-            >
-              {renderMessage(message)}
-            </Box>
-          ))}
-          <div ref={messagesEndRef} />
-        </Box>
+          <Box sx={{ 
+            flexGrow: 1, 
+            overflowY: 'auto', 
+            mb: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            p: 2
+          }}>
+            {messages.map((message, index) => (
+              <Box
+                key={index}
+                sx={{
+                  display: 'flex',
+                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
+                  mb: 1
+                }}
+              >
+                {renderMessage(message)}
+              </Box>
+            ))}
+            <div ref={messagesEndRef} />
+          </Box>
 
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <TextField
-            fullWidth
-            multiline
-            maxRows={4}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={`Type your message in English or ${supportedLanguages[nativeLanguage].name}...`}
-            disabled={isLoading}
-          />
-          <Button
-            variant="contained"
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            endIcon={isLoading ? <CircularProgress size={20} /> : <SendIcon />}
-          >
-            Send
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              fullWidth
+              multiline
+              maxRows={4}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={`Type your message in English or ${supportedLanguages[nativeLanguage].name}...`}
+              disabled={isLoading}
+            />
+            <Button
+              variant="contained"
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+              endIcon={isLoading ? <CircularProgress size={20} /> : <SendIcon />}
+            >
+              Send
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+          <CircularProgress />
         </Box>
-      </Paper>
-    </Container>
+      )}
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+    </ChatErrorBoundary>
   );
 };
 

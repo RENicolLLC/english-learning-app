@@ -11,7 +11,9 @@ import {
   Chip,
   Dialog,
   Badge,
-  useTheme
+  useTheme,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   EmojiEvents as TrophyIcon,
@@ -21,8 +23,33 @@ import {
   Bolt as PowerUpIcon,
   VolumeUp as SpeakIcon
 } from '@mui/icons-material';
+import ErrorBoundary from './ErrorBoundary';
+import { errorReportingService, NetworkError } from '../services/error/errorReportingService';
 
 import { PronunciationGameSession, gameConfig } from '../services/gamification/pronunciationGame';
+
+// Custom error boundary for game components
+const GameErrorBoundary = ({ children }) => (
+  <ErrorBoundary
+    fallback={(error, reset) => (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          Game Error
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          {error instanceof NetworkError 
+            ? 'Connection lost. Please check your internet connection.'
+            : 'Game encountered an error. Please try again.'}
+        </Typography>
+        <Button variant="contained" onClick={reset}>
+          Restart Game
+        </Button>
+      </Box>
+    )}
+  >
+    {children}
+  </ErrorBoundary>
+);
 
 const PronunciationGame = ({ userId, onComplete }) => {
   const theme = useTheme();
@@ -31,11 +58,52 @@ const PronunciationGame = ({ userId, onComplete }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [showAchievement, setShowAchievement] = useState(false);
   const [lastAchievement, setLastAchievement] = useState(null);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+
+  const handleError = async (error) => {
+    setError(error.message);
+    
+    if (error instanceof NetworkError && retryCount < MAX_RETRIES) {
+      setRetryCount(prev => prev + 1);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      await initializeGame(); // Retry initialization
+    } else {
+      errorReportingService.reportError(error, null, {
+        component: 'PronunciationGame',
+        userId,
+        retryCount
+      });
+    }
+  };
+
+  const initializeGame = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Check network connection
+      if (!navigator.onLine) {
+        throw new NetworkError('No internet connection');
+      }
+
+      // Initialize game session
+      const session = new PronunciationGameSession(userId);
+      setGameSession(session);
+      
+      // Reset retry count on successful initialization
+      setRetryCount(0);
+    } catch (error) {
+      await handleError(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Initialize game session
-    const session = new PronunciationGameSession(userId);
-    setGameSession(session);
+    initializeGame();
   }, [userId]);
 
   useEffect(() => {
@@ -54,10 +122,15 @@ const PronunciationGame = ({ userId, onComplete }) => {
     setTimeLeft(challenge.timeLimit);
   };
 
-  const handlePowerUp = (powerUpId) => {
-    if (gameSession.usePowerUp(powerUpId)) {
-      // Update UI to reflect power-up activation
-      setGameSession({ ...gameSession });
+  const handlePowerUp = async (powerUpId) => {
+    try {
+      if (!gameSession) throw new Error('Game session not initialized');
+      
+      if (gameSession.usePowerUp(powerUpId)) {
+        setGameSession({ ...gameSession });
+      }
+    } catch (error) {
+      handleError(error);
     }
   };
 
@@ -198,15 +271,41 @@ const PronunciationGame = ({ userId, onComplete }) => {
     </Dialog>
   );
 
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert 
+        severity="error" 
+        sx={{ mb: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={initializeGame}>
+            Retry
+          </Button>
+        }
+      >
+        {error}
+      </Alert>
+    );
+  }
+
   if (!gameSession) return null;
 
   return (
-    <Box>
-      {renderGameHeader()}
-      {renderPowerUps()}
-      {currentChallenge ? renderCurrentChallenge() : renderChallenges()}
-      {renderAchievementPopup()}
-    </Box>
+    <GameErrorBoundary>
+      <Box>
+        {renderGameHeader()}
+        {renderPowerUps()}
+        {currentChallenge ? renderCurrentChallenge() : renderChallenges()}
+        {renderAchievementPopup()}
+      </Box>
+    </GameErrorBoundary>
   );
 };
 
