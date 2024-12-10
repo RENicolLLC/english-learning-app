@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { 
+  signUp as firebaseSignUp,
+  signIn as firebaseSignIn,
+  logOut as firebaseLogOut,
+  onAuthStateChange
+} from '../../firebase/authService';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import app from '../../firebase/firebaseConfig';
 
 const AuthContext = createContext({});
 
@@ -11,95 +18,69 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    const session = supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    setLoading(false);
+    try {
+      const unsubscribe = onAuthStateChange(async (firebaseUser) => {
+        if (firebaseUser) {
+          // Get additional user data from Firestore
+          const db = getFirestore(app);
+          try {
+            const userDoc = await getDoc(doc(db, 'user_profiles', firebaseUser.uid));
+            const userData = userDoc.data();
+            setUser({
+              ...firebaseUser,
+              ...userData
+            });
+          } catch (error) {
+            console.error('Error fetching user data:', error);
+            setUser(firebaseUser);
+          }
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      });
 
-    // Listen for changes on auth state (logged in, signed out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Auth state change error:', error);
       setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+      setError(error.message);
+    }
   }, []);
 
-  // Sign up with email and password
   const signUp = async (email, password, userData) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            ...userData,
-            created_at: new Date().toISOString(),
-          },
-        },
-      });
-      if (error) throw error;
-      return data;
+      setError(null);
+      const user = await firebaseSignUp(email, password, userData);
+      return user;
     } catch (error) {
+      console.error('Sign up error:', error);
       setError(error.message);
-      return null;
+      throw error;
     }
   };
 
-  // Sign in with email and password
   const signIn = async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-      return data;
+      setError(null);
+      const user = await firebaseSignIn(email, password);
+      return user;
     } catch (error) {
+      console.error('Sign in error:', error);
       setError(error.message);
-      return null;
+      throw error;
     }
   };
 
-  // Sign out
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      setError(null);
+      await firebaseLogOut();
+      setUser(null);
     } catch (error) {
+      console.error('Sign out error:', error);
       setError(error.message);
-    }
-  };
-
-  // Password reset request
-  const resetPassword = async (email) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      setError(error.message);
-      return false;
-    }
-  };
-
-  // Update user profile
-  const updateProfile = async (userData) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          updated_at: new Date().toISOString(),
-          ...userData,
-        });
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      setError(error.message);
-      return null;
+      throw error;
     }
   };
 
@@ -109,12 +90,14 @@ export const AuthProvider = ({ children }) => {
     error,
     signUp,
     signIn,
-    signOut,
-    resetPassword,
-    updateProfile,
+    signOut
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 };
 
 export default AuthContext; 

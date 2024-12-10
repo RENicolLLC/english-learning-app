@@ -149,60 +149,38 @@ class ErrorReportingService {
     return errorReport;
   }
 
-  private async processErrorQueue() {
+  async processErrorQueue() {
     if (this.isProcessing || this.errorQueue.length === 0) return;
-
+    
     this.isProcessing = true;
     
     try {
       while (this.errorQueue.length > 0) {
-        const error = this.errorQueue[0];
-        let attempts = 0;
-        
-        while (attempts < this.retryAttempts) {
-          try {
-            await this.sendErrorToServer(error);
-            this.errorQueue.shift(); // Remove successfully sent error
-            break;
-          } catch (e) {
-            attempts++;
-            if (attempts === this.retryAttempts) {
-              console.error('Failed to send error report after multiple attempts:', e);
-              this.errorQueue.shift(); // Remove failed error after max retries
-            } else {
-              await this.delay(this.retryDelay * attempts);
-            }
-          }
-        }
+        const error = this.errorQueue.shift();
+        await this.sendErrorToServer(error);
       }
+    } catch (err) {
+      console.error('Error processing error queue:', err);
     } finally {
       this.isProcessing = false;
     }
   }
 
-  private async sendErrorToServer(errorReport) {
+  async sendErrorToServer(errorReport) {
     // Implementation would depend on your backend API
     // This is a placeholder implementation
     try {
-      const response = await fetch('/api/errors', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(errorReport),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
+      console.log('Sending error to server:', errorReport);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return true;
     } catch (error) {
-      throw new Error(`Failed to send error report: ${error.message}`);
+      console.error('Failed to send error to server:', error);
+      throw error;
     }
   }
 
-  private getSessionId() {
+  getSessionId() {
     let sessionId = sessionStorage.getItem('errorReportingSessionId');
     if (!sessionId) {
       sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -211,7 +189,7 @@ class ErrorReportingService {
     return sessionId;
   }
 
-  private delay(ms) {
+  delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

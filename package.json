@@ -2,6 +2,7 @@
   "name": "english-learning-app",
   "version": "1.0.0",
   "private": true,
+  "homepage": "/",
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
@@ -31,33 +32,19 @@
     "react-scripts": "5.0.1",
     "react-speech-recognition": "^3.10.0",
     "socket.io-client": "^4.7.2",
-    "web-vitals": "^2.1.4",
-    "workbox-background-sync": "^7.0.0",
-    "workbox-broadcast-update": "^7.0.0",
-    "workbox-cacheable-response": "^7.0.0",
-    "workbox-core": "^7.0.0",
-    "workbox-expiration": "^7.0.0",
-    "workbox-google-analytics": "^7.0.0",
-    "workbox-navigation-preload": "^7.0.0",
-    "workbox-precaching": "^7.0.0",
-    "workbox-range-requests": "^7.0.0",
-    "workbox-routing": "^7.0.0",
-    "workbox-strategies": "^7.0.0",
-    "workbox-streams": "^7.0.0"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --env=jsdom --verbose --transformIgnorePatterns \"node_modules/(?!@mui|@emotion)/\"",
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:ci": "react-scripts test --ci --coverage --watchAll=false",
     "eject": "react-scripts eject",
     "lint": "eslint src/**/*.{js,jsx}",
     "lint:fix": "eslint --fix src/**/*.{js,jsx}",
     "format": "prettier --write src/**/*.{js,jsx,css,scss}",
-    "analyze": "source-map-explorer 'build/static/js/*.js'",
-    "cypress:open": "cypress open",
-    "cypress:run": "cypress run",
-    "storybook": "start-storybook -p 6006",
-    "build-storybook": "build-storybook"
+    "analyze": "source-map-explorer 'build/static/js/*.js'"
   },
   "eslintConfig": {
     "extends": [
@@ -78,19 +65,34 @@
     ]
   },
   "devDependencies": {
-    "@storybook/addon-actions": "^7.6.3",
-    "@storybook/addon-essentials": "^7.6.3",
-    "@storybook/addon-links": "^7.6.3",
-    "@storybook/react": "^7.6.3",
-    "cypress": "^13.6.1",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^14.5.1",
     "eslint": "^8.55.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-cypress": "^2.15.1",
     "eslint-plugin-prettier": "^5.0.1",
     "eslint-plugin-react": "^7.33.2",
-    "husky": "^8.0.3",
-    "lint-staged": "^15.2.0",
-    "prettier": "^3.1.0",
-    "source-map-explorer": "^2.5.3"
+    "identity-obj-proxy": "^3.0.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.1.0"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/index.js",
+      "!src/reportWebVitals.js",
+      "!src/setupTests.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.js"
+    ],
+    "testEnvironment": "jsdom",
+    "moduleNameMapper": {
+      "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@mui|@emotion)/)"
+    ]
   }
 } 

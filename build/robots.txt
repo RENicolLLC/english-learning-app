@@ -1,0 +1,33 @@
+# English Learning App Robots.txt
+User-agent: *
+Allow: /
+
+# Main Sections
+Allow: /vocabulary/
+Allow: /grammar/
+Allow: /pronunciation/
+Allow: /practice/
+Allow: /leaderboard/
+Allow: /achievements/
+
+# User Sections
+Allow: /profile/
+Allow: /progress/
+
+# Support Pages
+Allow: /help/
+Allow: /faq/
+Allow: /contact/
+
+# Sitemaps
+Sitemap: https://englishlearningapp.com/sitemap.xml
+
+# Optimize Crawl
+Crawl-delay: 1
+
+# Disallow private or dynamic pages
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*?*
+Disallow: /*? 
