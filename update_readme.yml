@@ -3,6 +3,12 @@ name: Update README
 on:
   push:
     branches: [master]
+    paths:
+      - '**/*'  # Trigger on any file changes in the repository
+  pull_request:
+    branches: [master]
+    paths:
+      - '**/*'  # Trigger on any file changes in the repository
   schedule:
     - cron: '0 0 * * *'  # Runs at 00:00 UTC every day
 
@@ -27,4 +33,3 @@ jobs:
           git add README.md
           git commit -m "Auto-update README" || exit 0
           git push
-
