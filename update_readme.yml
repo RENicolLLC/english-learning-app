@@ -1,1 +1,30 @@
+name: Update README
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '0 0 * * *'  # Runs at 00:00 UTC every day
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+      - name: Update README
+        run: python update_readme.py
+      - name: Commit and push if changed
+        run: |
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          git add README.md
+          git commit -m "Auto-update README" || exit 0
+          git push
 
