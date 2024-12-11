@@ -1,5 +1,8 @@
 {
-  "projects": {
-    "default": "englishlearningapp-86c7a"
+  "hosting": {
+    "site": "english-learning-app",
+
+    "public": "public",
+    ...
   }
 }
