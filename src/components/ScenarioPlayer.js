@@ -5,9 +5,6 @@ import {
   CardContent,
   Typography,
   Button,
-  Stepper,
-  Step,
-  StepLabel,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -16,7 +13,6 @@ import {
   Paper,
   Chip,
   LinearProgress,
-  useTheme,
   Alert
 } from '@mui/material';
 import {
@@ -28,7 +24,7 @@ import {
   ErrorOutline as ErrorIcon
 } from '@mui/icons-material';
 import ErrorBoundary from './ErrorBoundary';
-import { errorReportingService, ValidationError } from '../services/error/errorReportingService';
+import { ValidationError } from '../services/error/errorReportingService';
 
 // Specific error boundary for scenario components
 const ScenarioErrorBoundary = ({ children }) => (
@@ -60,7 +56,6 @@ const ScenarioErrorBoundary = ({ children }) => (
 );
 
 const ScenarioPlayer = ({ scenario, userLanguage, onComplete, onBranchingPoint }) => {
-  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [showTranslation, setShowTranslation] = useState(false);
   const [showCulturalNote, setShowCulturalNote] = useState(false);
@@ -69,7 +64,6 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete, onBranchingPoint }
   const [showExercise, setShowExercise] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   const validateScenario = (scenario) => {
     if (!scenario?.content?.dialogue?.length) {
@@ -85,21 +79,8 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete, onBranchingPoint }
       validateScenario(scenario);
     } catch (error) {
       setError(error.message);
-      errorReportingService.reportError(error, null, {
-        component: 'ScenarioPlayer',
-        scenarioId: scenario?.metadata?.id
-      });
     }
   }, [scenario]);
-
-  const handleError = (error) => {
-    setError(error.message);
-    errorReportingService.reportError(error, null, {
-      component: 'ScenarioPlayer',
-      scenarioId: scenario?.metadata?.id,
-      action: 'playback'
-    });
-  };
 
   useEffect(() => {
     // Calculate progress
@@ -417,4 +398,4 @@ const ScenarioPlayer = ({ scenario, userLanguage, onComplete, onBranchingPoint }
   );
 };
 
-export default ScenarioPlayer; 
+export default ScenarioPlayer;
