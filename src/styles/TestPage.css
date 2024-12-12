@@ -1,0 +1,73 @@
+.test-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.test-page h1 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 30px;
+}
+
+.test-page section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.test-page h2 {
+  color: #34495e;
+  margin-bottom: 20px;
+}
+
+.subscription-section .tier-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.tier-button {
+  padding: 10px 20px;
+  border: 2px solid #3498db;
+  border-radius: 6px;
+  background: white;
+  color: #3498db;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tier-button:hover {
+  background: #3498db;
+  color: white;
+}
+
+.tier-button.selected {
+  background: #3498db;
+  color: white;
+}
+
+.practice-phrases {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.practice-item {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.info-section .info-content {
+  display: grid;
+  gap: 10px;
+}
+
+.info-content p {
+  color: #666;
+  font-size: 1.1em;
+} 

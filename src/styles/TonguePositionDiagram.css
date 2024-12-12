@@ -1,0 +1,32 @@
+.tongue-diagram {
+  width: 200px;
+  height: 200px;
+  margin: 20px auto;
+  position: relative;
+}
+
+.tongue-diagram svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tongue {
+  transform-origin: center;
+  transition: all 0.5s ease-in-out;
+}
+
+.step-description {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.tongue-diagram.playing .tongue {
+  animation: tongueMovement 2s infinite;
+}
+
+@keyframes tongueMovement {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+} 

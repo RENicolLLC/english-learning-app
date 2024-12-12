@@ -1,0 +1,30 @@
+name: Visual Regression Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  visual-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install Cypress
+        run: npx cypress install
+        
+      - name: Run visual tests
+        run: npm run test:visual:ci
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
+          ADMIN_BYPASS_KEY: ${{ secrets.ADMIN_BYPASS_KEY }} 

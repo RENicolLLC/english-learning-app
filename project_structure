@@ -1,0 +1,13 @@
+english_learning_app/
+├── frontend/
+│   ├── web/
+│   ├── mobile/
+│   └── desktop/
+├── backend/
+│   ├── api/
+│   ├── auth/
+│   └── database/
+└── content/
+    ├── lessons/
+    ├── exercises/
+    └── assessments/ 
