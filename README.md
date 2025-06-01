@@ -32,6 +32,17 @@ A comprehensive React-based English learning platform with AI-powered features, 
 - Analytics tracking
 - Performance optimization
 
+## 🛠️ Prerequisites
+
+- Node.js 18+ and npm 9+
+- Works on macOS, Windows, and Linux
+- Python 3 (optional, for automation scripts)
+
+On macOS you can install Node.js using Homebrew:
+```bash
+brew install node
+```
+
 ## 🚀 Quick Start
 
 1. **Clone & Install**
@@ -55,6 +66,17 @@ A comprehensive React-based English learning platform with AI-powered features, 
    ```bash
    npm start
    ```
+
+## 📦 Dependencies
+
+Key libraries and frameworks used:
+
+- React and React DOM
+- React Router DOM for routing
+- Material UI (`@mui/material`) for UI components
+- Firebase for authentication and storage
+- Supabase client for database access
+- OpenAI for AI-powered features
 
 ## 📁 Project Structure
 
