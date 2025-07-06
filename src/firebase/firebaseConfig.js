@@ -22,7 +22,7 @@ try {
   // Only initialize analytics if window is available (client-side)
   if (typeof window !== 'undefined') {
     try {
-      const analytics = getAnalytics(app);
+      getAnalytics(app);
     } catch (error) {
       console.error('Analytics initialization error:', error);
     }
