@@ -1,5 +1,5 @@
-import { analyticsService } from '../analytics/analyticsService';
-import { supabase } from '../auth/supabaseClient';
+// import { analyticsService } from '../analytics/analyticsService';
+// import { supabase } from '../auth/supabaseClient';
 import * as Sentry from "@sentry/react";
 
 // Initialize Sentry
