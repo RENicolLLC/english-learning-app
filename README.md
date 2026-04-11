@@ -69,14 +69,14 @@ brew install node
 
 ## 📦 Dependencies
 
-Key libraries and frameworks used:
+Key libraries and frameworks used (with versions):
 
-- React and React DOM
-- React Router DOM for routing
-- Material UI (`@mui/material`) for UI components
-- Firebase for authentication and storage
-- Supabase client for database access
-- OpenAI for AI-powered features
+- React and React DOM `18.2.0`
+- React Router DOM `6.20.1`
+- Material UI (`@mui/material`) `5.14.20`
+- Firebase `10.7.1`
+- Supabase client `2.39.0`
+- OpenAI `4.20.1`
 
 ## 📁 Project Structure
 
